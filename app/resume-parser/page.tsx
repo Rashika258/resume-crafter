@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { TextItems } from "../lib/parse-resume-from-pdf/types";
 import { groupTextItemsIntoLines } from "../lib/parse-resume-from-pdf/group-text-items-into-lines";
 import { groupLinesIntoSections } from "../lib/parse-resume-from-pdf/group-lines-into-sections";
-import { extractResumeFromSections } from "../lib/parse-resume-from-pdf/extract-resume-from-sections";
 import { FlexboxSpacer } from "../components/FlexboxSpacer";
 import { Heading } from "../components/documentation/Heading";
 import { Paragraph } from "../components/documentation/Paragraph";
@@ -13,6 +12,7 @@ import { cx } from "../lib/cx";
 import ResumeDropzone from "../components/ResumeDropzone";
 import { ResumeTable } from "./ResumeTable";
 import { readPdf } from "../lib/parse-resume-from-pdf/read-pdf";
+import { extractResumeFromSections } from "../lib/parse-resume-from-pdf/extract-resume-form-sections";
 
 const RESUME_EXAMPLES = [
   {
@@ -32,7 +32,7 @@ const RESUME_EXAMPLES = [
 
 const defaultFileUrl = RESUME_EXAMPLES[1]["fileUrl"];
 
-export default function ResumeParser() {
+const ResumeParser = () => {
   const [fileUrl, setFileUrl] = useState(defaultFileUrl);
 
   const [textItems, setTextItems] = useState<TextItems>([]);
@@ -119,4 +119,6 @@ export default function ResumeParser() {
       </div>
     </main>
   );
-}
+};
+
+export default ResumeParser;

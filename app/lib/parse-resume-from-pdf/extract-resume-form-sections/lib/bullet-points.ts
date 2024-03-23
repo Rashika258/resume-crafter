@@ -1,110 +1,99 @@
-import { ResumeEducation } from "../../redux/types";
-import { hasLetter } from "../group-lines-into-sections";
-import { FeatureSet, ResumeSectionToLines, TextItem } from "../types";
-import { hasComma, hasNumber } from "./extract-profile";
-import {
-  getBulletPointsFromLines,
-  getDescriptionsLineIdx,
-} from "./lib/bullet-points";
-import { DATE_FEATURE_SETS } from "./lib/common-features";
-import { getTextWithHighestFeatureScore } from "./lib/feature-scoring-system";
-import { getSectionLinesByKeywords } from "./lib/get-section-lines";
-import { divideSectionIntoSubsections } from "./lib/subsections";
+import { Lines, TextItem } from "../../types";
 
-const SCHOOLS = ["College", "University", "Institute", "School", "Academy"];
-const hasSchool = (item: TextItem) =>
-  SCHOOLS.some((school) => item.text.includes(school));
+export const BULLET_POINTS = [
+  "⋅",
+  "∙",
+  "🞄",
+  "•",
+  "⦁",
+  "⚫︎",
+  "●",
+  "⬤",
+  "⚬",
+  "○",
+];
 
-const DEGREES = ["Bachelor", "Master", "PhD", "Ph."];
-const hasDegree = (item: TextItem) =>
-  DEGREES.some((degree) => item.text.includes(degree)) ||
-  /[ABM][A-Z\.]/.test(item.text);
-
-const matchGPA = (item: TextItem) => item.text.match(/[0-4]\.\d{1,2}/);
-
-const matchGrade = (item: TextItem) => {
-  const grade = parseFloat(item.text);
-  if (Number.isFinite(grade) && grade <= 110) {
-    return [String(grade)] as RegExpMatchArray;
+const getFirstBulletPointLineIdx = (lines: Lines): number | undefined => {
+  for (let i = 0; i < lines.length; i++) {
+    for (let item of lines[i]) {
+      if (BULLET_POINTS.some((bullet) => item.text.includes(bullet))) {
+        return i;
+      }
+    }
   }
 
-  return null;
+  return undefined;
 };
 
-const SCHOOL_FEATURE_SETS: FeatureSet[] = [
-  [hasSchool, 4],
-  [hasDegree, -4],
-  [hasNumber, -4],
-];
+const isWord = (str: string) => /^[^0-9]+$/.test(str);
 
-const DEGREE_FEATURE_SETS: FeatureSet[] = [
-  [hasDegree, 4],
-  [hasSchool, -4],
-  [hasNumber, -3],
-];
+const hasAtLeast8Words = (item: TextItem) =>
+  item.text.split(/\s/).filter(isWord).length >= 8;
 
-const GPA_FEATURE_SETS: FeatureSet[] = [
-  [matchGPA, 4, true],
-  [matchGrade, 3, true],
-  [hasComma, -3],
-  [hasLetter, -4],
-];
+export const getDescriptionsLineIdx = (lines: Lines): number | undefined => {
+  let idx = getFirstBulletPointLineIdx(lines);
 
-export const extractEducation = (sections: ResumeSectionToLines) => {
-  const educations: ResumeEducation[] = [];
-  const educationScores = [];
-  const lines = getSectionLinesByKeywords(sections, ["education"]);
-  const subsections = divideSectionIntoSubsections(lines);
-  for (const subsectionsLines of subsections) {
-    const textItems = subsectionsLines.flat();
-    const [school, schoolScores] = getTextWithHighestFeatureScore(
-      textItems,
-      SCHOOL_FEATURE_SETS
-    );
-    const [degree, degreeScore] = getTextWithHighestFeatureScore(
-      textItems,
-      DEGREE_FEATURE_SETS
-    );
-    const [gpa, gpaScores] = getTextWithHighestFeatureScore(
-      textItems,
-      GPA_FEATURE_SETS
-    );
-    const [date, dateScores] = getTextWithHighestFeatureScore(
-      textItems,
-      DATE_FEATURE_SETS
-    );
-
-    let descriptions: string[] = [];
-    const descriptionsLineIdx = getDescriptionsLineIdx(subsectionsLines);
-    if (descriptionsLineIdx !== undefined) {
-      const descriptionLines = subsectionsLines.slice(descriptionsLineIdx);
-      descriptions = getBulletPointsFromLines(descriptionLines);
-    }
-
-    educations.push({ school, degree, gpa, date, descriptions });
-    educationScores.push({
-      schoolScores,
-      degreeScore,
-      gpaScores,
-      dateScores,
-    });
-  }
-
-  if (educations.length !== 0) {
-    const courseLines = getSectionLinesByKeywords(sections, ["course"]);
-    if (courseLines.length !== 0) {
-      educations[0].descriptions.push(
-        "Courses: " +
-          courseLines
-            .flat()
-            .map((item) => item.text)
-            .join(" ")
-      );
+  if (idx === undefined) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.length === 1 && hasAtLeast8Words(line[0])) {
+        idx = i;
+        break;
+      }
     }
   }
 
-  return {
-    educations,
-    educationScores,
-  };
+  return idx;
+};
+
+export const getBulletPointsFromLines = (lines: Lines): string[] => {
+  const firstBulletPointLineIndex = getFirstBulletPointLineIdx(lines);
+  if (firstBulletPointLineIndex === undefined) {
+    return lines.map((line) => line.map((item) => item.text).join(" "));
+  }
+
+  let lineStr = "";
+  for (let item of lines.flat()) {
+    const text = item.text;
+
+    if (!lineStr.endsWith(" ") && !text.startsWith(" ")) {
+      lineStr += " ";
+    }
+    lineStr += text;
+  }
+
+  const commonBulletPoint = getMostCommonBulletPoint(lineStr);
+
+  const firstBulletPointIndex = lineStr.indexOf(commonBulletPoint);
+  if (firstBulletPointIndex !== -1) {
+    lineStr = lineStr.slice(firstBulletPointIndex);
+  }
+
+  return lineStr
+    .split(commonBulletPoint)
+    .map((text) => text.trim())
+    .filter((text) => !!text);
+};
+
+const getMostCommonBulletPoint = (str: string): string => {
+  const bulletToCount: { [bullet: string]: number } = BULLET_POINTS.reduce(
+    (acc: { [bullet: string]: number }, curr) => {
+      acc[curr] = 0;
+      return acc;
+    },
+    {}
+  );
+
+  let bulletWithMostCount = BULLET_POINTS[0];
+  let bulletMaxCount = 0;
+  for (let char of str) {
+    if (bulletToCount.hasOwnProperty(char)) {
+      bulletToCount[char]++;
+      if (bulletToCount[char] > bulletMaxCount) {
+        bulletWithMostCount = char;
+      }
+    }
+  }
+
+  return bulletWithMostCount;
 };

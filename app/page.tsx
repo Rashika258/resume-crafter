@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { Hero } from "./home/Hero";
 import { Steps } from "./home/Steps";
+import * as React from "react";
 
 export default function Home() {
   return (
